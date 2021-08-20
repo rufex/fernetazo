@@ -11,50 +11,55 @@ from rich.console import Console
 parser = argparse.ArgumentParser()
 parser.add_argument('--encrypt', '-e', help="Encrypt a messsage with your password.", action="store_true", default=False)
 parser.add_argument('--decrypt', '-d', help="Decrpyt a message with your password.", action="store_true", default=False)
+parser.add_argument('--get-salt', help="Generate new salt", action="store_true", default=False)
 args = parser.parse_args()
 no_arguments = 'You need to define one argument (encrypt/decrypt). For further information add -h'
 
 # Check arguments
-if args.encrypt == False and args.decrypt == False:
+if args.encrypt == False and args.decrypt == False and args.get_salt == False:
     raise Exception(no_arguments)
 
-# User Password
-user_pass = Prompt.ask('Password', password=True)
-pass_b = user_pass.encode('utf-8')
-
 #Salt could be randomly generated, but should be stored to use the same in the future.
-#random_salt = os.urandom(16)
+if args.get_salt:
+    random_salt = os.urandom(16)
+    print("New salt (store it properly!): ",str(random_salt))
 
-#Salt stored as ENV var as string (keep a backup!!)
-salt_env = os.getenv('FERNETAZO_SALT')
-salt = salt_env.encode('utf-8')
+#Encrypt-Decrpyt
+if args.encrypt or args.decrypt:
+    #Salt stored as ENV var as string (keep a backup!!)
+    salt_env = os.getenv('FERNETAZO_SALT')
+    salt = salt_env.encode('utf-8')
 
-# Prepare Fernetazo
-kdf = PBKDF2HMAC(
-    algorithm=hashes.SHA256(),
-    length=32,
-    salt=salt,
-    iterations=100000,
-    backend=default_backend(),
-)
-key = base64.urlsafe_b64encode(kdf.derive(pass_b))
-fernetazo = Fernet(key)
+    # User Password
+    user_pass = Prompt.ask('Password', password=True)
+    pass_b = user_pass.encode('utf-8')
+
+    # Prepare Fernetazo
+    kdf = PBKDF2HMAC(
+        algorithm=hashes.SHA256(),
+        length=32,
+        salt=salt,
+        iterations=100000,
+        backend=default_backend(),
+    )
+    key = base64.urlsafe_b64encode(kdf.derive(pass_b))
+    fernetazo = Fernet(key)
 
 
-def encrypt_message(message: str):
-    message_b = message.encode('utf-8')
-    token = fernetazo.encrypt(message_b)
-    return token.decode('utf-8')
+    def encrypt_message(message: str):
+        message_b = message.encode('utf-8')
+        token = fernetazo.encrypt(message_b)
+        return token.decode('utf-8')
 
 
-def decrypt_token(token: str):
-    try:
-        token_b = token.encode('utf-8')
-        message_b = fernetazo.decrypt(token_b)
-        return message_b.decode('utf-8')
-    except:
-        print('Decryption failed. Double check your password and token!')
-        raise
+    def decrypt_token(token: str):
+        try:
+            token_b = token.encode('utf-8')
+            message_b = fernetazo.decrypt(token_b)
+            return message_b.decode('utf-8')
+        except:
+            print('Decryption failed. Double check your password and token!')
+            raise
 
 
 if __name__ == "__main__":
